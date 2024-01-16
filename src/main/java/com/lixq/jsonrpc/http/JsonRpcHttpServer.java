@@ -1,4 +1,7 @@
 package com.lixq.jsonrpc.http;
 
-public class JsonRpcHttpServer {
+import com.lixq.jsonrpc.core.JsonRpcServer;
+
+public class JsonRpcHttpServer implements JsonRpcServer {
+
 }
