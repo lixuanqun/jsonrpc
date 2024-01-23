@@ -3,7 +3,7 @@ package com.lixq.jsonrpc.core;
 import lombok.Data;
 
 @Data
-public class JsonRpcResponse {
+public class RpcResponse {
     private String jsonrpc;
     private String method;
     private Object result;

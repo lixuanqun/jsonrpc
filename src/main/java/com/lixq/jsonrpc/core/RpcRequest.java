@@ -3,11 +3,9 @@ package com.lixq.jsonrpc.core;
 import lombok.Data;
 
 @Data
-public class JsonRpcError {
+public class RpcRequest {
     private String jsonrpc;
     private String method;
-    private Object code;
-    private String message;
-    private Object data;
+    private Object params;
     private String id;
 }
