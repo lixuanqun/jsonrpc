@@ -2,7 +2,7 @@ package com.lixq.jsonrpc.core;
 
 import java.util.List;
 
-public interface JsonRpcClient {
+public class JsonRpcClient {
     void close();
     void connect();
     boolean canSend();
