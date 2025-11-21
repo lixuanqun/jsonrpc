@@ -1,3 +1,6 @@
+
+**English Version**: See [README_EN.md](README_EN.md)
+
 # JSON-RPC for Java
 
 一个基于 Netty 实现的高性能、易于使用的 JSON-RPC 框架，支持原生 Java 和 Spring Boot 两种使用方式。
@@ -367,7 +370,4 @@ mvn clean install
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request！
-
 ---
-
-**English Version**: See [README_EN.md](README_EN.md)
