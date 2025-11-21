@@ -13,17 +13,27 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <jackson.version>2.13.4</jackson.version>
+<<<<<<< HEAD
         <netty.version>4.1.94.Final</netty.version>
         <spring-boot.version>2.7.14</spring-boot.version>
+=======
+        <netty.version>4.1.115.Final</netty.version>
+>>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <dependencies>
         <!-- Netty -->
         <dependency>
+            <groupId>org.reflections</groupId>
+            <artifactId>reflections</artifactId>
+            <version>0.10.2</version>
+        </dependency>
+        <dependency>
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
             <version>${netty.version}</version>
+<<<<<<< HEAD
         </dependency>
         
         <!-- Jackson for JSON -->
@@ -31,6 +41,8 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
+=======
+>>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -42,6 +54,7 @@
             <artifactId>jackson-annotations</artifactId>
             <version>${jackson.version}</version>
         </dependency>
+<<<<<<< HEAD
         
         <!-- Logging -->
         <dependency>
@@ -75,5 +88,7 @@
             <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
+=======
+>>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
     </dependencies>
 </project>
