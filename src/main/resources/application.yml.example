@@ -1,0 +1,14 @@
+# JSON-RPC 配置示例
+jsonrpc:
+  enabled: true  # 是否启用 JSON-RPC，默认为 true
+  server:
+    enabled: true  # 是否启用服务器，默认为 true
+    protocol: TCP  # 协议类型: TCP, HTTP, WS
+    host: 0.0.0.0  # 服务器地址
+    port: 18080    # 服务器端口
+  client:
+    enabled: false  # 是否启用客户端，默认为 false
+    host: 127.0.0.1  # 服务器地址
+    port: 18080      # 服务器端口
+    connect-timeout: 5  # 连接超时时间（秒）
+

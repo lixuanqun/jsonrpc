@@ -4,6 +4,5 @@ public enum JsonRpcProtocol {
     HTTP,
     TCP,
     WS,
-    WSS,
     IPC
 }

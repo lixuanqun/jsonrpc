@@ -11,25 +11,26 @@ package com.lixq.jsonrpc.core;
  * -32000 to -32099	Server error服务端错误	预留用于自定义的服务器错误。
  */
 public enum RpcErrorEnums {
-    ParseError(-32700, "Parse error"),
-    InvalidRequest(-32600, "Invalid request"),
-    MethodNotFound(-32601, "Method not found"),
-    InvalidParams(-32602, "Invalid params"),
-    InternalError(-32603, "Internal error");
+    ParseError(-32700, "JSON parse error",null),
+    InvalidRequest(-32600, "Invalid request",null),
+    MethodNotFound(-32601, "Method not found",null),
+    InvalidParams(-32602, "method parameters invalid",null),
+    InternalError(-32603, "internal error",null),
+    BulkError(-32002, "bulk error",null);
+
+
+    public static final int CUSTOM_SERVER_ERROR_UPPER = -32000;
+    public static final int CUSTOM_SERVER_ERROR_LOWER = -32099;
+
 
     private int code;
     private String message;
     private Object data;
 
-    RpcErrorEnums(int code, String message) {
+    RpcErrorEnums(int code, String message,Object data) {
         this.code = code;
         this.message = message;
-    }
-
-    void CustomRpcErrorEnums(int code, String message, Object data) {
-        this.code = code;
-        this.message = message;
-        this.data = data;
+        this.data =data;
     }
 
     public int getCode() {
@@ -42,14 +43,5 @@ public enum RpcErrorEnums {
 
     public Object getData() {
         return data;
-    }
-
-    public static String getMessageByCode(int code) {
-        for (RpcErrorEnums errorEnum : RpcErrorEnums.values()) {
-            if (errorEnum.getCode() == code) {
-                return errorEnum.getMessage();
-            }
-        }
-        return null;
     }
 }

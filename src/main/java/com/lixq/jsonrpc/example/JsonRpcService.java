@@ -1,11 +1,24 @@
 package com.lixq.jsonrpc.example;
 
-import com.lixq.jsonrpc.JsonRpcMethod;
-import reactor.core.publisher.Mono;
+import com.lixq.jsonrpc.core.JsonRpcMethod;
 
+/**
+ * JSON-RPC 示例服务
+ */
 public class JsonRpcService {
-//    @JsonRpcMethod("hello")
-//    public Mono<String> hello(String params){
-//        return Mono.just(params);
-//    }
+    
+    @JsonRpcMethod("hello")
+    public String hello(String name) {
+        return "Hello, " + name + "!";
+    }
+
+    @JsonRpcMethod("add")
+    public Integer add(Integer a, Integer b) {
+        return a + b;
+    }
+
+    @JsonRpcMethod("echo")
+    public Object echo(Object message) {
+        return message;
+    }
 }
