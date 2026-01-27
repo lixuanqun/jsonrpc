@@ -24,7 +24,7 @@
 ## 依赖说明
 
 ### 核心依赖
-- **Netty 4.1.94.Final**：网络通信框架
+- **Netty 4.1.115.Final**：网络通信框架
 - **Jackson 2.13.4**：JSON 序列化和反序列化
   - jackson-databind
   - jackson-core

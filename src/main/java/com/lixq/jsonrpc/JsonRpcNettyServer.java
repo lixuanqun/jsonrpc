@@ -1,15 +1,20 @@
 package com.lixq.jsonrpc;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.channel.*;
+import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelInitializer;
+import io.netty.channel.ChannelOption;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.http.HttpObjectAggregator;
-import io.netty.handler.codec.http.HttpServerCodec;
-import io.netty.handler.codec.http.websocketx.WebSocketServerProtocolHandler;
+import io.netty.handler.codec.DelimiterBasedFrameDecoder;
+import io.netty.handler.codec.Delimiters;
 import io.netty.handler.codec.string.StringDecoder;
 import io.netty.handler.codec.string.StringEncoder;
+
+import java.nio.charset.StandardCharsets;
 
 public class JsonRpcNettyServer {
     private static final int PORT = 8081;
@@ -21,6 +26,7 @@ public class JsonRpcNettyServer {
         // 调整线程池大小
         bossGroup = new NioEventLoopGroup(1);
         workerGroup = new NioEventLoopGroup(Runtime.getRuntime().availableProcessors() * 2);
+        JsonRpcServiceRegistry serviceRegistry = new JsonRpcServiceRegistry();
         ServerBootstrap b = new ServerBootstrap();
         b.group(bossGroup, workerGroup)
                 .channel(NioServerSocketChannel.class)
@@ -28,12 +34,10 @@ public class JsonRpcNettyServer {
                     @Override
                     protected void initChannel(SocketChannel ch) throws Exception {
                         ChannelPipeline pipeline = ch.pipeline();
-                        pipeline.addLast(new HttpServerCodec());
-                        pipeline.addLast(new HttpObjectAggregator(65536));
-                        pipeline.addLast(new WebSocketServerProtocolHandler("/ws"));
-                        pipeline.addLast(new StringDecoder());
-                        pipeline.addLast(new StringEncoder());
-                        pipeline.addLast(new JsonRpcServerHandler());
+                        pipeline.addLast(new DelimiterBasedFrameDecoder(8192, Delimiters.lineDelimiter()));
+                        pipeline.addLast(new StringDecoder(StandardCharsets.UTF_8));
+                        pipeline.addLast(new StringEncoder(StandardCharsets.UTF_8));
+                        pipeline.addLast(new JsonRpcServerHandler(serviceRegistry));
                     }
                 })
                 .option(ChannelOption.SO_BACKLOG, 128)

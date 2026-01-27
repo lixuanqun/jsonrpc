@@ -10,7 +10,7 @@ public class JsonRpcRequest {
     @JsonProperty("params")
     private Object params;
     @JsonProperty("id")
-    private String id;
+    private Object id;
 
     // Getters and Setters
     public String getJsonrpc() {
@@ -37,11 +37,11 @@ public class JsonRpcRequest {
         this.params = params;
     }
 
-    public String getId() {
+    public Object getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(Object id) {
         this.id = id;
     }
 }

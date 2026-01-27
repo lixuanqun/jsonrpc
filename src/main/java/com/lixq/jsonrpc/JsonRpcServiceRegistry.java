@@ -61,13 +61,8 @@ public class JsonRpcServiceRegistry {
         }
 
         public Object invoke(Object[] params) throws Exception {
-            if (params == null || params.length == 0) {
-                return method.invoke(service);
-            } else if (params.length == 1) {
-                return method.invoke(service, params[0]);
-            } else {
-                return method.invoke(service, (Object) params);
-            }
+            Object[] args = params == null ? new Object[0] : params;
+            return method.invoke(service, args);
         }
 
         public Method getMethod() {

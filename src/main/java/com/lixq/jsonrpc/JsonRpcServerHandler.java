@@ -1,7 +1,7 @@
 package com.lixq.jsonrpc;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-<<<<<<< HEAD
 import com.lixq.jsonrpc.core.RpcErrorEnums;
 import com.lixq.jsonrpc.core.RpcRequest;
 import com.lixq.jsonrpc.core.RpcResponse;
@@ -10,16 +10,17 @@ import io.netty.channel.ChannelInboundHandlerAdapter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
- * JSON-RPC 服务器处理器
+ * JSON-RPC 服务器处理器（TCP + 换行分隔）
  */
 public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
     private static final Logger log = LoggerFactory.getLogger(JsonRpcServerHandler.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
-    
+    private static final Object INVALID_ID = new Object();
+
     private final JsonRpcServiceRegistry serviceRegistry;
 
     public JsonRpcServerHandler(JsonRpcServiceRegistry serviceRegistry) {
@@ -28,56 +29,96 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
 
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        // StringDecoder 已经将 ByteBuf 转换为 String
+        if (!(msg instanceof String)) {
+            return;
+        }
         String json = (String) msg;
         log.debug("Received JSON-RPC request: {}", json);
 
-        RpcResponse response;
+        JsonNode root;
         try {
-            // 尝试解析为单个请求或批量请求
-            Object jsonNode = objectMapper.readValue(json, Object.class);
-            
-            if (jsonNode instanceof List) {
-                // 批量请求
-                @SuppressWarnings("unchecked")
-                List<Object> requestList = (List<Object>) jsonNode;
-                RpcRequest[] requests = objectMapper.convertValue(requestList, RpcRequest[].class);
-                List<RpcResponse> responses = Arrays.asList(handleBatchRequest(requests));
-                String responseJson = objectMapper.writeValueAsString(responses);
-                ctx.writeAndFlush(responseJson + "\n");
-                return;
-            } else {
-                // 单个请求
-                RpcRequest request = objectMapper.readValue(json, RpcRequest.class);
-                response = handleRequest(request);
-            }
+            root = objectMapper.readTree(json);
         } catch (Exception e) {
             log.error("Error parsing JSON-RPC request", e);
-            response = createErrorResponse(RpcErrorEnums.ParseError, null, null);
+            writeResponse(ctx, createErrorResponse(RpcErrorEnums.ParseError, null, null));
+            return;
         }
 
-        String responseJson = objectMapper.writeValueAsString(response);
-        log.debug("Sending JSON-RPC response: {}", responseJson);
-        ctx.writeAndFlush(responseJson + "\n");
+        if (root.isArray()) {
+            handleBatch(ctx, root);
+            return;
+        }
+
+        if (root.isObject()) {
+            handleSingle(ctx, root);
+            return;
+        }
+
+        writeResponse(ctx, createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
+    }
+
+    private void handleSingle(ChannelHandlerContext ctx, JsonNode node) throws Exception {
+        ParsedRequest parsed = parseRequestNode(node);
+        if (parsed.errorResponse != null) {
+            writeResponse(ctx, parsed.errorResponse);
+            return;
+        }
+
+        RpcRequest request = parsed.request;
+        RpcResponse response = handleRequest(request);
+        if (request.getId() != null) {
+            writeResponse(ctx, response);
+        }
+    }
+
+    private void handleBatch(ChannelHandlerContext ctx, JsonNode arrayNode) throws Exception {
+        if (!arrayNode.isArray() || arrayNode.size() == 0) {
+            writeResponse(ctx, createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
+            return;
+        }
+
+        List<RpcResponse> responses = new ArrayList<>();
+        for (JsonNode node : arrayNode) {
+            ParsedRequest parsed = parseRequestNode(node);
+            if (parsed.errorResponse != null) {
+                responses.add(parsed.errorResponse);
+                continue;
+            }
+
+            RpcRequest request = parsed.request;
+            RpcResponse response = handleRequest(request);
+            if (request.getId() != null) {
+                responses.add(response);
+            }
+        }
+
+        if (!responses.isEmpty()) {
+            String responseJson = objectMapper.writeValueAsString(responses);
+            log.debug("Sending JSON-RPC batch response: {}", responseJson);
+            ctx.writeAndFlush(responseJson + "\n");
+        }
     }
 
     private RpcResponse handleRequest(RpcRequest request) {
-        // 验证请求
         if (request.getMethod() == null || request.getMethod().isEmpty()) {
             return createErrorResponse(RpcErrorEnums.InvalidRequest, request.getId(), null);
         }
 
-        // 查找方法
+        if (request.getMethod().startsWith("rpc.")) {
+            return createErrorResponse(RpcErrorEnums.MethodNotFound, request.getId(), null);
+        }
+
         JsonRpcServiceRegistry.MethodInvoker invoker = serviceRegistry.getMethodInvoker(request.getMethod());
         if (invoker == null) {
             return createErrorResponse(RpcErrorEnums.MethodNotFound, request.getId(), null);
         }
 
-        // 调用方法
         try {
             Object params = request.getParams();
-            Object[] args = params != null ? (params instanceof List ? ((List<?>) params).toArray() : new Object[]{params}) : new Object[0];
-            
+            Object[] args = params != null
+                ? (params instanceof List ? ((List<?>) params).toArray() : new Object[]{params})
+                : new Object[0];
+
             Object result = invoker.invoke(args);
             return new RpcResponse(result, request.getId());
         } catch (IllegalArgumentException e) {
@@ -89,15 +130,56 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
         }
     }
 
-    private RpcResponse[] handleBatchRequest(RpcRequest[] requests) {
-        RpcResponse[] responses = new RpcResponse[requests.length];
-        for (int i = 0; i < requests.length; i++) {
-            responses[i] = handleRequest(requests[i]);
+    private ParsedRequest parseRequestNode(JsonNode node) {
+        if (node == null || !node.isObject()) {
+            return ParsedRequest.invalid(createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
         }
-        return responses;
+
+        JsonNode jsonrpcNode = node.get("jsonrpc");
+        if (jsonrpcNode == null || !jsonrpcNode.isTextual() || !"2.0".equals(jsonrpcNode.asText())) {
+            return ParsedRequest.invalid(createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
+        }
+
+        JsonNode methodNode = node.get("method");
+        if (methodNode == null || !methodNode.isTextual() || methodNode.asText().isEmpty()) {
+            return ParsedRequest.invalid(createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
+        }
+
+        Object id = parseId(node.get("id"));
+        if (id == INVALID_ID) {
+            return ParsedRequest.invalid(createErrorResponse(RpcErrorEnums.InvalidRequest, null, null));
+        }
+
+        Object params = null;
+        JsonNode paramsNode = node.get("params");
+        if (paramsNode != null && !paramsNode.isNull()) {
+            params = objectMapper.convertValue(paramsNode, Object.class);
+        }
+
+        RpcRequest request = new RpcRequest(methodNode.asText(), params, id);
+        return ParsedRequest.valid(request);
     }
 
-    private RpcResponse createErrorResponse(RpcErrorEnums errorEnum, String id, Object data) {
+    private Object parseId(JsonNode idNode) {
+        if (idNode == null || idNode.isNull()) {
+            return null;
+        }
+        if (idNode.isTextual()) {
+            return idNode.asText();
+        }
+        if (idNode.isNumber()) {
+            return idNode.numberValue();
+        }
+        return INVALID_ID;
+    }
+
+    private void writeResponse(ChannelHandlerContext ctx, RpcResponse response) throws Exception {
+        String responseJson = objectMapper.writeValueAsString(response);
+        log.debug("Sending JSON-RPC response: {}", responseJson);
+        ctx.writeAndFlush(responseJson + "\n");
+    }
+
+    private RpcResponse createErrorResponse(RpcErrorEnums errorEnum, Object id, Object data) {
         RpcResponse.RpcError rpcError = new RpcResponse.RpcError(
             errorEnum.getCode(),
             errorEnum.getMessage(),
@@ -111,122 +193,22 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
         log.error("Exception in channel", cause);
         ctx.close();
     }
-=======
-import com.fasterxml.jackson.databind.SerializationFeature;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.*;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
+    private static class ParsedRequest {
+        private final RpcRequest request;
+        private final RpcResponse errorResponse;
 
-public class JsonRpcServerHandler extends SimpleChannelInboundHandler<Object> {
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final JsonRpcMethodRegistry methodRegistry = new JsonRpcMethodRegistry();
-
-    public JsonRpcServerHandler() {
-        try {
-            // 注册方法示例
-            Method testMethod = this.getClass().getMethod("testMethod");
-            methodRegistry.registerMethod("testMethod", testMethod);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public String testMethod() {
-        return "Method executed successfully";
-    }
-
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        JsonRpcRequest rpcRequest;
-        if (msg instanceof FullHttpRequest) {
-            FullHttpRequest request = (FullHttpRequest) msg;
-            if (request.method() != HttpMethod.POST) {
-                sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
-                return;
-            }
-            String content = request.content().toString(StandardCharsets.UTF_8);
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, true);
-        } else if (msg instanceof TextWebSocketFrame) {
-            TextWebSocketFrame frame = (TextWebSocketFrame) msg;
-            String content = frame.text();
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, false);
-        } else if (msg instanceof ByteBuf) {
-            ByteBuf buffer = (ByteBuf) msg;
-            String content = buffer.toString(StandardCharsets.UTF_8);
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, false);
-        }
-    }
-
-    private void handleRequest(ChannelHandlerContext ctx, JsonRpcRequest rpcRequest, boolean isHttp) throws Exception {
-        JsonRpcResponse rpcResponse = new JsonRpcResponse();
-        rpcResponse.setJsonrpc("2.0");
-        rpcResponse.setId(rpcRequest.getId());
-
-        JsonRpcMethodRegistry.MethodInfo methodInfo = methodRegistry.getMethod(rpcRequest.getMethod());
-        if (methodInfo != null) {
-            Object result = methodInfo.getMethod().invoke(methodInfo.getInstance());
-            rpcResponse.setResult(result);
-        } else {
-            rpcResponse.setError("Method not found");
+        private ParsedRequest(RpcRequest request, RpcResponse errorResponse) {
+            this.request = request;
+            this.errorResponse = errorResponse;
         }
 
-        String responseJson = objectMapper.writeValueAsString(rpcResponse);
-        if (isHttp) {
-            ByteBuf responseContent = Unpooled.copiedBuffer(responseJson, StandardCharsets.UTF_8);
-            FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, responseContent);
-            response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
-            response.headers().set(HttpHeaderNames.CONTENT_LENGTH, responseContent.readableBytes());
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-        } else {
-            ctx.writeAndFlush(new TextWebSocketFrame(responseJson));
+        private static ParsedRequest valid(RpcRequest request) {
+            return new ParsedRequest(request, null);
+        }
+
+        private static ParsedRequest invalid(RpcResponse errorResponse) {
+            return new ParsedRequest(null, errorResponse);
         }
     }
-
-    private void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
-        FullHttpResponse response = new DefaultFullHttpResponse(
-                HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", StandardCharsets.UTF_8));
-        response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
-        ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-    }
-
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
-        ctx.close();
-    }
-
-    private JsonRpcResponse processRequest(JsonRpcRequest rpcRequest) {
-        JsonRpcResponse rpcResponse = new JsonRpcResponse();
-        rpcResponse.setJsonrpc("2.0");
-        rpcResponse.setId(rpcRequest.getId());
-
-        Method method = methodRegistry.getMethod(rpcRequest.getMethod());
-        if (method != null) {
-            try {
-                Object result = method.invoke(this);
-                rpcResponse.setResult(result);
-            } catch (Exception e) {
-                rpcResponse.setError("Method execution error: " + e.getMessage());
-            }
-        } else {
-            rpcResponse.setError("Method not found");
-        }
-        return rpcResponse;
-    }
-
->>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
 }

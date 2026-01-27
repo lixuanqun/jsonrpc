@@ -21,7 +21,7 @@ A high-performance, easy-to-use JSON-RPC framework based on Netty, supporting bo
 ## Dependencies
 
 ### Core Dependencies
-- **Netty 4.1.94.Final**: Network communication framework
+- **Netty 4.1.115.Final**: Network communication framework
 - **Jackson 2.13.4**: JSON serialization and deserialization
   - jackson-databind
   - jackson-core

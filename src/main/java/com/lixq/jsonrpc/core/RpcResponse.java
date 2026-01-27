@@ -15,17 +15,17 @@ public class RpcResponse {
     private RpcError error;
     
     @JsonProperty("id")
-    private String id;
+    private Object id;
 
     public RpcResponse() {
     }
 
-    public RpcResponse(Object result, String id) {
+    public RpcResponse(Object result, Object id) {
         this.result = result;
         this.id = id;
     }
 
-    public RpcResponse(RpcError error, String id) {
+    public RpcResponse(RpcError error, Object id) {
         this.error = error;
         this.id = id;
     }
@@ -54,11 +54,11 @@ public class RpcResponse {
         this.error = error;
     }
 
-    public String getId() {
+    public Object getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(Object id) {
         this.id = id;
     }
 

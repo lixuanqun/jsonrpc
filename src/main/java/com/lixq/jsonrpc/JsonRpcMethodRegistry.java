@@ -21,7 +21,7 @@ public class JsonRpcMethodRegistry {
 
     public static void scanPackage(JsonRpcMethodRegistry registry) {
         // 默认扫描本工程根包，可根据实际情况修改
-        String  packageName = getClass().getPackage().getName();
+        String packageName = JsonRpcMethodRegistry.class.getPackage().getName();
         Reflections reflections = new Reflections(packageName);
         Set<Class<?>> classes = reflections.getTypesAnnotatedWith(JsonRpcMethod.class);
         for (Class<?> clazz : classes) {

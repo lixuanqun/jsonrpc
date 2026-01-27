@@ -13,12 +13,12 @@ public class RpcRequest {
     private Object params;
     
     @JsonProperty("id")
-    private String id;
+    private Object id;
 
     public RpcRequest() {
     }
 
-    public RpcRequest(String method, Object params, String id) {
+    public RpcRequest(String method, Object params, Object id) {
         this.method = method;
         this.params = params;
         this.id = id;
@@ -48,11 +48,11 @@ public class RpcRequest {
         this.params = params;
     }
 
-    public String getId() {
+    public Object getId() {
         return id;
     }
 
-    public void setId(String id) {
+    public void setId(Object id) {
         this.id = id;
     }
 }
