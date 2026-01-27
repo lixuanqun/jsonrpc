@@ -87,4 +87,12 @@
             <optional>true</optional>
         </dependency>
     </dependencies>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/lixuanqun/jsonrpc</url>
+        </repository>
+    </distributionManagement>
 </project>
