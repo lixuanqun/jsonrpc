@@ -1,5 +1,6 @@
 package com.lixq.jsonrpc.core;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -90,6 +91,7 @@ public class RpcResponse {
     /**
      * 检查是否为成功响应
      */
+    @JsonIgnore
     public boolean isSuccess() {
         return error == null;
     }
@@ -97,6 +99,7 @@ public class RpcResponse {
     /**
      * 检查是否为错误响应
      */
+    @JsonIgnore
     public boolean isError() {
         return error != null;
     }

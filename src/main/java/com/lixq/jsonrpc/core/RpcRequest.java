@@ -1,5 +1,6 @@
 package com.lixq.jsonrpc.core;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
@@ -59,6 +60,7 @@ public class RpcRequest {
     /**
      * 检查是否为通知
      */
+    @JsonIgnore
     public boolean isNotification() {
         return id == null;
     }
@@ -66,6 +68,7 @@ public class RpcRequest {
     /**
      * 验证请求是否符合 JSON-RPC 2.0 规范
      */
+    @JsonIgnore
     public boolean isValid() {
         // jsonrpc 必须为 "2.0"
         if (!"2.0".equals(jsonrpc)) {
