@@ -360,6 +360,35 @@ mvn clean package
 mvn clean install
 ```
 
+## Load Testing Script
+
+The project includes a TCP JSON-RPC load test script (newline-delimited JSON):
+
+```bash
+python scripts/jsonrpc_load_test.py \
+  --host 127.0.0.1 \
+  --port 18080 \
+  --method add \
+  --params "[1,2]" \
+  --connections 50 \
+  --requests-per-connection 1000
+```
+
+Send notifications (no response expected):
+
+```bash
+python scripts/jsonrpc_load_test.py \
+  --host 127.0.0.1 \
+  --port 18080 \
+  --method hello \
+  --params "[\"world\"]" \
+  --connections 20 \
+  --requests-per-connection 500 \
+  --notification
+```
+
+> Note: The script targets the current TCP + newline-delimited protocol. Start `JsonRpcServer` first.
+
 ## License
 
 See the [LICENSE](LICENSE) file for details.

@@ -363,6 +363,35 @@ mvn clean package
 mvn clean install
 ```
 
+## 压测脚本
+
+项目提供一个基于 TCP 的 JSON-RPC 压测脚本（换行分隔 JSON 消息）：
+
+```bash
+python scripts/jsonrpc_load_test.py \
+  --host 127.0.0.1 \
+  --port 18080 \
+  --method add \
+  --params "[1,2]" \
+  --connections 50 \
+  --requests-per-connection 1000
+```
+
+发送通知（不等待响应）：
+
+```bash
+python scripts/jsonrpc_load_test.py \
+  --host 127.0.0.1 \
+  --port 18080 \
+  --method hello \
+  --params "[\"world\"]" \
+  --connections 20 \
+  --requests-per-connection 500 \
+  --notification
+```
+
+> 说明：脚本基于当前 TCP + 换行分隔协议实现，需先启动 `JsonRpcServer`。
+
 ## 许可证
 
 查看 [LICENSE](LICENSE) 文件了解详情。
