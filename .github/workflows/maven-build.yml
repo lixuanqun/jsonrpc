@@ -1,0 +1,44 @@
+# GitHub Actions 自动构建（每次 Push/PR 时触发）
+
+name: Maven CI
+
+on:
+  push:
+    branches: [ '**' ]  # 所有分支
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        java: [ '8', '11', '17', '21' ]  # 多 JDK 版本测试
+    
+    name: Build with Java ${{ matrix.java }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up JDK ${{ matrix.java }}
+      uses: actions/setup-java@v4
+      with:
+        java-version: ${{ matrix.java }}
+        distribution: 'temurin'
+        cache: maven
+
+    - name: Build
+      run: mvn -B clean compile --file pom.xml
+
+    - name: Package
+      run: mvn -B package -DskipTests --file pom.xml
+
+    - name: Upload JAR (Java 8 only)
+      if: matrix.java == '8'
+      uses: actions/upload-artifact@v4
+      with:
+        name: jsonrpc-${{ github.sha }}
+        path: target/*.jar
+        retention-days: 5
