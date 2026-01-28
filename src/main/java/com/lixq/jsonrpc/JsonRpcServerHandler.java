@@ -1,22 +1,30 @@
 package com.lixq.jsonrpc;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-<<<<<<< HEAD
 import com.lixq.jsonrpc.core.RpcErrorEnums;
 import com.lixq.jsonrpc.core.RpcRequest;
 import com.lixq.jsonrpc.core.RpcResponse;
+import io.netty.buffer.ByteBuf;
+import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
+import io.netty.channel.SimpleChannelInboundHandler;
+import io.netty.handler.codec.http.*;
+import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.List;
 
 /**
  * JSON-RPC 服务器处理器
+ * Supports TCP (String), HTTP (FullHttpRequest), and WebSocket (TextWebSocketFrame)
  */
-public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
+@ChannelHandler.Sharable
+public class JsonRpcServerHandler extends SimpleChannelInboundHandler<Object> {
     private static final Logger log = LoggerFactory.getLogger(JsonRpcServerHandler.class);
     private static final ObjectMapper objectMapper = new ObjectMapper();
     
@@ -27,12 +35,32 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
     }
 
     @Override
-    public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        // StringDecoder 已经将 ByteBuf 转换为 String
-        String json = (String) msg;
-        log.debug("Received JSON-RPC request: {}", json);
+    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
+        if (msg instanceof String) {
+            // TCP String processing (from StringDecoder)
+            handleStringRequest(ctx, (String) msg, false, false);
+        } else if (msg instanceof FullHttpRequest) {
+            // HTTP processing
+            FullHttpRequest request = (FullHttpRequest) msg;
+            if (request.method() != HttpMethod.POST) {
+                sendHttpError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
+                return;
+            }
+            String content = request.content().toString(StandardCharsets.UTF_8);
+            handleStringRequest(ctx, content, true, false);
+        } else if (msg instanceof TextWebSocketFrame) {
+            // WebSocket processing
+            TextWebSocketFrame frame = (TextWebSocketFrame) msg;
+            handleStringRequest(ctx, frame.text(), false, true);
+        } else {
+            // Fallback: pass to next handler if possible, or ignore
+            ctx.fireChannelRead(msg);
+        }
+    }
 
-        RpcResponse response;
+    private void handleStringRequest(ChannelHandlerContext ctx, String json, boolean isHttp, boolean isWs) {
+        log.debug("Received JSON-RPC request: {}", json);
+        String responseJson;
         try {
             // 尝试解析为单个请求或批量请求
             Object jsonNode = objectMapper.readValue(json, Object.class);
@@ -43,22 +71,41 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
                 List<Object> requestList = (List<Object>) jsonNode;
                 RpcRequest[] requests = objectMapper.convertValue(requestList, RpcRequest[].class);
                 List<RpcResponse> responses = Arrays.asList(handleBatchRequest(requests));
-                String responseJson = objectMapper.writeValueAsString(responses);
-                ctx.writeAndFlush(responseJson + "\n");
-                return;
+                responseJson = objectMapper.writeValueAsString(responses);
             } else {
                 // 单个请求
                 RpcRequest request = objectMapper.readValue(json, RpcRequest.class);
-                response = handleRequest(request);
+                RpcResponse response = handleRequest(request);
+                responseJson = objectMapper.writeValueAsString(response);
             }
         } catch (Exception e) {
             log.error("Error parsing JSON-RPC request", e);
-            response = createErrorResponse(RpcErrorEnums.ParseError, null, null);
+            RpcResponse errorResponse = createErrorResponse(RpcErrorEnums.ParseError, null, null);
+            try {
+                responseJson = objectMapper.writeValueAsString(errorResponse);
+            } catch (Exception ex) {
+                // Fallback valid JSON
+                responseJson = "{\"jsonrpc\":\"2.0\",\"error\":{\"code\":-32700,\"message\":\"Parse error\"},\"id\":null}";
+            }
         }
 
-        String responseJson = objectMapper.writeValueAsString(response);
         log.debug("Sending JSON-RPC response: {}", responseJson);
-        ctx.writeAndFlush(responseJson + "\n");
+        sendResponse(ctx, responseJson, isHttp, isWs);
+    }
+
+    private void sendResponse(ChannelHandlerContext ctx, String responseJson, boolean isHttp, boolean isWs) {
+        if (isHttp) {
+            ByteBuf content = Unpooled.copiedBuffer(responseJson, StandardCharsets.UTF_8);
+            FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, content);
+            response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
+            response.headers().set(HttpHeaderNames.CONTENT_LENGTH, content.readableBytes());
+            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
+        } else if (isWs) {
+            ctx.writeAndFlush(new TextWebSocketFrame(responseJson));
+        } else {
+            // TCP (assume StringEncoder is next)
+            ctx.writeAndFlush(responseJson + "\n");
+        }
     }
 
     private RpcResponse handleRequest(RpcRequest request) {
@@ -106,127 +153,16 @@ public class JsonRpcServerHandler extends ChannelInboundHandlerAdapter {
         return new RpcResponse(rpcError, id);
     }
 
-    @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-        log.error("Exception in channel", cause);
-        ctx.close();
-    }
-=======
-import com.fasterxml.jackson.databind.SerializationFeature;
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
-import io.netty.channel.ChannelFutureListener;
-import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.SimpleChannelInboundHandler;
-import io.netty.handler.codec.http.*;
-import io.netty.handler.codec.http.websocketx.TextWebSocketFrame;
-
-import java.lang.reflect.Method;
-import java.nio.charset.StandardCharsets;
-
-public class JsonRpcServerHandler extends SimpleChannelInboundHandler<Object> {
-
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final JsonRpcMethodRegistry methodRegistry = new JsonRpcMethodRegistry();
-
-    public JsonRpcServerHandler() {
-        try {
-            // 注册方法示例
-            Method testMethod = this.getClass().getMethod("testMethod");
-            methodRegistry.registerMethod("testMethod", testMethod);
-        } catch (NoSuchMethodException e) {
-            e.printStackTrace();
-        }
-    }
-
-    public String testMethod() {
-        return "Method executed successfully";
-    }
-
-    @Override
-    protected void channelRead0(ChannelHandlerContext ctx, Object msg) throws Exception {
-        JsonRpcRequest rpcRequest;
-        if (msg instanceof FullHttpRequest) {
-            FullHttpRequest request = (FullHttpRequest) msg;
-            if (request.method() != HttpMethod.POST) {
-                sendError(ctx, HttpResponseStatus.METHOD_NOT_ALLOWED);
-                return;
-            }
-            String content = request.content().toString(StandardCharsets.UTF_8);
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, true);
-        } else if (msg instanceof TextWebSocketFrame) {
-            TextWebSocketFrame frame = (TextWebSocketFrame) msg;
-            String content = frame.text();
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, false);
-        } else if (msg instanceof ByteBuf) {
-            ByteBuf buffer = (ByteBuf) msg;
-            String content = buffer.toString(StandardCharsets.UTF_8);
-            objectMapper.disable(SerializationFeature.INDENT_OUTPUT);
-            rpcRequest = objectMapper.readValue(content, JsonRpcRequest.class);
-            handleRequest(ctx, rpcRequest, false);
-        }
-    }
-
-    private void handleRequest(ChannelHandlerContext ctx, JsonRpcRequest rpcRequest, boolean isHttp) throws Exception {
-        JsonRpcResponse rpcResponse = new JsonRpcResponse();
-        rpcResponse.setJsonrpc("2.0");
-        rpcResponse.setId(rpcRequest.getId());
-
-        JsonRpcMethodRegistry.MethodInfo methodInfo = methodRegistry.getMethod(rpcRequest.getMethod());
-        if (methodInfo != null) {
-            Object result = methodInfo.getMethod().invoke(methodInfo.getInstance());
-            rpcResponse.setResult(result);
-        } else {
-            rpcResponse.setError("Method not found");
-        }
-
-        String responseJson = objectMapper.writeValueAsString(rpcResponse);
-        if (isHttp) {
-            ByteBuf responseContent = Unpooled.copiedBuffer(responseJson, StandardCharsets.UTF_8);
-            FullHttpResponse response = new DefaultFullHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.OK, responseContent);
-            response.headers().set(HttpHeaderNames.CONTENT_TYPE, "application/json; charset=UTF-8");
-            response.headers().set(HttpHeaderNames.CONTENT_LENGTH, responseContent.readableBytes());
-            ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
-        } else {
-            ctx.writeAndFlush(new TextWebSocketFrame(responseJson));
-        }
-    }
-
-    private void sendError(ChannelHandlerContext ctx, HttpResponseStatus status) {
+    private void sendHttpError(ChannelHandlerContext ctx, HttpResponseStatus status) {
         FullHttpResponse response = new DefaultFullHttpResponse(
                 HttpVersion.HTTP_1_1, status, Unpooled.copiedBuffer("Failure: " + status.toString() + "\r\n", StandardCharsets.UTF_8));
         response.headers().set(HttpHeaderNames.CONTENT_TYPE, "text/plain; charset=UTF-8");
         ctx.writeAndFlush(response).addListener(ChannelFutureListener.CLOSE);
     }
-
+    
     @Override
-    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
-        cause.printStackTrace();
+    public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
+        log.error("Exception in channel", cause);
         ctx.close();
     }
-
-    private JsonRpcResponse processRequest(JsonRpcRequest rpcRequest) {
-        JsonRpcResponse rpcResponse = new JsonRpcResponse();
-        rpcResponse.setJsonrpc("2.0");
-        rpcResponse.setId(rpcRequest.getId());
-
-        Method method = methodRegistry.getMethod(rpcRequest.getMethod());
-        if (method != null) {
-            try {
-                Object result = method.invoke(this);
-                rpcResponse.setResult(result);
-            } catch (Exception e) {
-                rpcResponse.setError("Method execution error: " + e.getMessage());
-            }
-        } else {
-            rpcResponse.setError("Method not found");
-        }
-        return rpcResponse;
-    }
-
->>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
 }

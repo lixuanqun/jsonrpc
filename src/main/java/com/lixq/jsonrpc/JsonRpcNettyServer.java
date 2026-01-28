@@ -1,5 +1,6 @@
 package com.lixq.jsonrpc;
 
+import com.lixq.jsonrpc.example.JsonRpcService;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.*;
 import io.netty.channel.nio.NioEventLoopGroup;
@@ -15,6 +16,13 @@ public class JsonRpcNettyServer {
     private static final int PORT = 8081;
     private EventLoopGroup bossGroup;
     private EventLoopGroup workerGroup;
+    private final JsonRpcServiceRegistry serviceRegistry;
+
+    public JsonRpcNettyServer() {
+        this.serviceRegistry = new JsonRpcServiceRegistry();
+        // Register default service
+        this.serviceRegistry.registerService(new JsonRpcService());
+    }
 
 //    @PostConstruct
     public void start() throws Exception {
@@ -31,9 +39,19 @@ public class JsonRpcNettyServer {
                         pipeline.addLast(new HttpServerCodec());
                         pipeline.addLast(new HttpObjectAggregator(65536));
                         pipeline.addLast(new WebSocketServerProtocolHandler("/ws"));
-                        pipeline.addLast(new StringDecoder());
-                        pipeline.addLast(new StringEncoder());
-                        pipeline.addLast(new JsonRpcServerHandler());
+                        // StringDecoder might interfere with HTTP/WS frames if not careful, 
+                        // but JsonRpcServerHandler will handle specific types.
+                        // However, StringDecoder expects ByteBuf. 
+                        // If WebSocket handler handles the frame, it outputs WebSocketFrame.
+                        // If HttpObjectAggregator outputs FullHttpRequest.
+                        // StringDecoder might complain if it receives non-ByteBuf.
+                        // We should probably remove StringDecoder/Encoder here and let Handler handle conversions
+                        // OR ensure they are only used for raw TCP. 
+                        // For now, I'll remove them to avoid ClassCastException in StringDecoder if it gets a Frame.
+                        // But wait, JsonRpcServer.java uses them for TCP. 
+                        // This server seems dedicated to HTTP/WS.
+                        
+                        pipeline.addLast(new JsonRpcServerHandler(serviceRegistry));
                     }
                 })
                 .option(ChannelOption.SO_BACKLOG, 128)
@@ -50,5 +68,9 @@ public class JsonRpcNettyServer {
     public void stop() {
         bossGroup.shutdownGracefully();
         workerGroup.shutdownGracefully();
+    }
+    
+    public static void main(String[] args) throws Exception {
+        new JsonRpcNettyServer().start();
     }
 }

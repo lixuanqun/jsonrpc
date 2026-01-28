@@ -13,12 +13,8 @@
         <maven.compiler.source>8</maven.compiler.source>
         <maven.compiler.target>8</maven.compiler.target>
         <jackson.version>2.13.4</jackson.version>
-<<<<<<< HEAD
-        <netty.version>4.1.94.Final</netty.version>
-        <spring-boot.version>2.7.14</spring-boot.version>
-=======
         <netty.version>4.1.115.Final</netty.version>
->>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
+        <spring-boot.version>2.7.14</spring-boot.version>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
@@ -33,7 +29,6 @@
             <groupId>io.netty</groupId>
             <artifactId>netty-all</artifactId>
             <version>${netty.version}</version>
-<<<<<<< HEAD
         </dependency>
         
         <!-- Jackson for JSON -->
@@ -41,8 +36,6 @@
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
             <version>${jackson.version}</version>
-=======
->>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
@@ -54,7 +47,6 @@
             <artifactId>jackson-annotations</artifactId>
             <version>${jackson.version}</version>
         </dependency>
-<<<<<<< HEAD
         
         <!-- Logging -->
         <dependency>
@@ -66,7 +58,13 @@
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
             <version>1.7.36</version>
-            <scope>test</scope>
+        </dependency>
+        
+        <!-- Java EE Annotations -->
+        <dependency>
+            <groupId>javax.annotation</groupId>
+            <artifactId>javax.annotation-api</artifactId>
+            <version>1.3.2</version>
         </dependency>
         
         <!-- Spring Boot Starter (optional, for Spring Boot auto-configuration) -->
@@ -88,7 +86,13 @@
             <version>5.3.31</version>
             <optional>true</optional>
         </dependency>
-=======
->>>>>>> 8e4a0eb843bd226a7ca1b5f86903446f846cc9b7
     </dependencies>
+
+    <distributionManagement>
+        <repository>
+            <id>github</id>
+            <name>GitHub Packages</name>
+            <url>https://maven.pkg.github.com/lixuanqun/jsonrpc</url>
+        </repository>
+    </distributionManagement>
 </project>
